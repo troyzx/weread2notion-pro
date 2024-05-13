@@ -1,3 +1,7 @@
 scripts/__pycache__/
+<<<<<<< HEAD
 .env
 .DS_Store
+=======
+.env
+>>>>>>> 6d89ad3735d905a8c5b52780323f19fa7e068930
