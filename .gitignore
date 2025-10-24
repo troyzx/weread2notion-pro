@@ -1,11 +1,47 @@
-<<<<<<< HEAD
-scripts/__pycache__/
-<<<<<<< HEAD
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Environment variables
 .env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
 .DS_Store
-=======
-.env
->>>>>>> 6d89ad3735d905a8c5b52780323f19fa7e068930
-=======
-.env
->>>>>>> b3c1e9fcc85a6249e1fc173b541122dcae995b9e
+Thumbs.db
+
+# Project specific
+OUT_FOLDER/
+*.log
