@@ -433,17 +433,16 @@ class NotionHelper:
         database_id = kwargs.pop("database_id")
         body = kwargs
         # 在新版本的 notion-client 中，使用 client.client 来访问底层的 httpx 客户端
-        import json
         auth_token = os.getenv("NOTION_TOKEN")
         headers = {
             "Authorization": f"Bearer {auth_token}",
-            "Notion-Version": "2022-06-28",
+            "Notion-Version": "2025-09-03",
             "Content-Type": "application/json",
         }
         url = f"https://api.notion.com/v1/databases/{database_id}/query"
         response = self.client.client.post(
             url,
-            content=json.dumps(body),
+            json=body,
             headers=headers
         )
         return response.json()
@@ -499,6 +498,20 @@ class NotionHelper:
             }
         return books_dict
 
+    def check_existing_books(self, book_ids):
+        """检查指定的书籍是否已经存在于数据库中"""
+        if not self.book_database_id:
+            return []
+        
+        existing_ids = []
+        all_books = self.get_all_book()
+        
+        for book_id in book_ids:
+            if book_id in all_books:
+                existing_ids.append(book_id)
+        
+        return existing_ids
+
     @retry(stop_max_attempt_number=3, wait_fixed=5000)
     def query_all_by_book(self, database_id, filter):
         results = []
@@ -519,32 +532,67 @@ class NotionHelper:
     @retry(stop_max_attempt_number=3, wait_fixed=5000)
     def query_all(self, database_id):
         """获取database中所有的数据"""
+        if not database_id:
+            return []
+        
         results = []
+        auth_token = os.getenv("NOTION_TOKEN")
+        headers = {
+            "Authorization": f"Bearer {auth_token}",
+            "Notion-Version": "2025-09-03",
+            "Content-Type": "application/json",
+        }
+        
+        # 步骤 1: 获取数据库的 data_source_id
+        db_url = f"https://api.notion.com/v1/databases/{database_id}"
+        db_response = self.client.client.get(
+            db_url,
+            headers=headers
+        )
+        db_data = db_response.json()
+        
+        # 检查是否成功获取
+        if db_response.status_code != 200:
+            print(f"⚠️  获取数据库 {database_id} 失败: "
+                  f"{db_data.get('message', 'Unknown error')}")
+            return []
+        
+        # 获取 data_sources
+        data_sources = db_data.get("data_sources", [])
+        if not data_sources:
+            print(f"⚠️  数据库 {database_id} 没有 data_sources")
+            return []
+        
+        data_source_id = data_sources[0]["id"]
+        
+        # 步骤 2: 用 data_source_id 查询数据
         has_more = True
         start_cursor = None
+        
         while has_more:
-            # 使用直接 HTTP 调用来查询数据库
-            import json
-            auth_token = os.getenv("NOTION_TOKEN")
-            headers = {
-                "Authorization": f"Bearer {auth_token}",
-                "Notion-Version": "2022-06-28",
-                "Content-Type": "application/json",
-            }
-            body = {
-                "start_cursor": start_cursor,
-                "page_size": 100,
-            }
-            url = f"https://api.notion.com/v1/databases/{database_id}/query"
+            body = {"page_size": 100}
+            if start_cursor:
+                body["start_cursor"] = start_cursor
+            query_url = (
+                "https://api.notion.com/v1/data_sources/"
+                f"{data_source_id}/query"
+            )
             response = self.client.client.post(
-                url,
-                content=json.dumps(body),
+                query_url,
+                json=body,
                 headers=headers
             )
             response_data = response.json()
+            
+            if response.status_code != 200:
+                print(f"⚠️  查询 data_source {data_source_id} 失败: "
+                      f"{response_data.get('message', 'Unknown error')}")
+                break
+            
             start_cursor = response_data.get("next_cursor")
             has_more = response_data.get("has_more")
             results.extend(response_data.get("results", []))
+        
         return results
 
     def get_date_relation(self, properties, date):
