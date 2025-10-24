@@ -11,14 +11,14 @@ from dotenv import load_dotenv
 
 load_dotenv()
 WEREAD_URL = "https://weread.qq.com/"
-WEREAD_NOTEBOOKS_URL = "https://i.weread.qq.com/user/notebooks"
-WEREAD_BOOKMARKLIST_URL = "https://i.weread.qq.com/book/bookmarklist"
-WEREAD_CHAPTER_INFO = "https://i.weread.qq.com/book/chapterInfos"
-WEREAD_READ_INFO_URL = "https://i.weread.qq.com/book/readinfo"
-WEREAD_REVIEW_LIST_URL = "https://i.weread.qq.com/review/list"
-WEREAD_BOOK_INFO = "https://i.weread.qq.com/book/info"
-WEREAD_READDATA_DETAIL = "https://i.weread.qq.com/readdata/detail"
-WEREAD_HISTORY_URL = "https://i.weread.qq.com/readdata/summary?synckey=0"
+WEREAD_NOTEBOOKS_URL = "https://weread.qq.com/api/user/notebook"
+WEREAD_BOOKMARKLIST_URL = "https://weread.qq.com/web/book/bookmarklist"
+WEREAD_CHAPTER_INFO = "https://weread.qq.com/web/book/chapterInfos"
+WEREAD_READ_INFO_URL = "https://weread.qq.com/web/book/readinfo"
+WEREAD_REVIEW_LIST_URL = "https://weread.qq.com/web/review/list"
+WEREAD_BOOK_INFO = "https://weread.qq.com/web/book/info"
+WEREAD_READDATA_DETAIL = "https://weread.qq.com/web/readdata/detail"
+WEREAD_HISTORY_URL = "https://weread.qq.com/web/readdata/summary?synckey=0"
 
 
 class WeReadApi:
@@ -94,10 +94,24 @@ class WeReadApi:
 
     def get_bookshelf(self):
         """获取书架列表"""
-        self.session.get(WEREAD_URL)
+        # 先访问主页建立 session
+        r = self.session.get(WEREAD_URL)
+        # 如果响应中有 set-cookie，更新 cookies
+        if 'set-cookie' in r.headers or 'Set-Cookie' in r.headers:
+            set_cookie = r.headers.get('set-cookie') or r.headers.get('Set-Cookie')
+            if set_cookie:
+                # 解析并更新 cookie
+                self._update_cookies_from_response(set_cookie)
+        
         # 使用新的 API 端点替代 /shelf/sync
         # /api/user/notebook 直接返回数据（无需检查 errcode）
         r = self.session.get("https://weread.qq.com/api/user/notebook")
+        # 再次检查响应头中的 set-cookie
+        if 'set-cookie' in r.headers or 'Set-Cookie' in r.headers:
+            set_cookie = r.headers.get('set-cookie') or r.headers.get('Set-Cookie')
+            if set_cookie:
+                self._update_cookies_from_response(set_cookie)
+        
         if r.ok:
             data = r.json()
             # 新 API 直接返回书籍列表，不需要检查错误代码
@@ -114,6 +128,24 @@ class WeReadApi:
                 self.handle_errcode(data)
                 raise RuntimeError(f"Could not get bookshelf {r.text}")
         return {"books": [], "bookProgress": [], "archive": []}
+    
+    def _update_cookies_from_response(self, set_cookie_header):
+        """从 set-cookie 响应头中提取并更新 cookies"""
+        try:
+            # set-cookie 头通常是这样的格式：
+            # wr_skey=xxx; Path=/; Domain=.weread.qq.com; HttpOnly
+            cookies = set_cookie_header.split(';')
+            for cookie in cookies:
+                cookie = cookie.strip()
+                if '=' in cookie:
+                    key, value = cookie.split('=', 1)
+                    key = key.strip()
+                    if key.lower() not in ['path', 'domain', 'httponly', 'secure', 'max-age', 'expires']:
+                        # 这是一个真正的 cookie
+                        self.session.cookies.set(key, value.strip())
+        except Exception as e:
+            # 静默处理，不影响流程
+            pass
         
     def handle_errcode(self, data):
         """处理错误代码"""
@@ -130,30 +162,50 @@ class WeReadApi:
     @retry(stop_max_attempt_number=3, wait_fixed=5000)
     def get_notebooklist(self):
         """获取笔记本列表"""
-        self.session.get(WEREAD_URL)
-        r = self.session.get(WEREAD_NOTEBOOKS_URL)
-        if r.ok:
-            data = r.json()
-            books = data.get("books")
-            books.sort(key=lambda x: x["sort"])
-            return books
-        else:
-            errcode = r.json().get("errcode",0)
-            self.handle_errcode(errcode)
-            raise Exception(f"Could not get notebook list {r.text}")
+        # 使用 /api/user/notebook 端点（与 get_bookshelf 相同）
+        # /user/notebooks 已被废弃或不可用，所以直接返回书架数据
+        bookshelf = self.get_bookshelf()
+        return bookshelf.get("books", [])
 
     @retry(stop_max_attempt_number=3, wait_fixed=5000)
     def get_bookinfo(self, bookId):
-        """获取书的详情"""
-        self.session.get(WEREAD_URL)
-        params = dict(bookId=bookId)
-        r = self.session.get(WEREAD_BOOK_INFO, params=params)
-        if r.ok:
-            return r.json()
-        else:
-            errcode = r.json().get("errcode",0)
-            self.handle_errcode(errcode)
-            print(f"Could not get book info {r.text}")
+        """获取书的详情
+        从 /api/user/notebook 已有的数据中提取，不再调用 /web/book/info
+        """
+        # 尝试从书架数据中找到这本书
+        bookshelf = self.get_bookshelf()
+        for item in bookshelf.get("books", []):
+            if item.get("bookId") == bookId and "book" in item:
+                # 返回扁平化的书籍信息以保持兼容性
+                return item.get("book", {})
+        
+        # 如果在书架中没找到，尝试调用 /web/book/info
+        try:
+            self.session.get(WEREAD_URL)
+            params = dict(bookId=bookId)
+            r = self.session.get(WEREAD_BOOK_INFO, params=params)
+            
+            # 更新 cookies
+            if 'set-cookie' in r.headers or 'Set-Cookie' in r.headers:
+                set_cookie = r.headers.get('set-cookie') or r.headers.get('Set-Cookie')
+                if set_cookie:
+                    self._update_cookies_from_response(set_cookie)
+            
+            if r.ok:
+                data = r.json()
+                # 检查是否有 info 字段（新 API 格式）
+                if "info" in data and (data.get("errCode") == 0 or data.get("errCode") is None):
+                    return data.get("info", {})
+                # 尝试直接返回（可能是旧 API 格式）
+                if data.get("errcode") == 0 or data.get("errcode") is None:
+                    return data
+                # 有错误
+                self.handle_errcode(data)
+        except Exception as e:
+            pass
+        
+        # 最后回退：返回书籍基本信息（至少有 bookId）
+        return {"bookId": bookId}
 
 
     @retry(stop_max_attempt_number=3, wait_fixed=5000)
@@ -173,31 +225,49 @@ class WeReadApi:
 
     @retry(stop_max_attempt_number=3, wait_fixed=5000)
     def get_read_info(self, bookId):
-        self.session.get(WEREAD_URL)
-        params = dict(
-            noteCount=1,
-            readingDetail=1,
-            finishedBookIndex=1,
-            readingBookCount=1,
-            readingBookIndex=1,
-            finishedBookCount=1,
-            bookId=bookId,
-            finishedDate=1,
-        )
-        headers = {
-            "baseapi":"32",
-            "appver":"8.2.5.10163885",
-            "basever":"8.2.5.10163885",
-            "osver":"12",
-            "User-Agent": "WeRead/8.2.5 WRBrand/xiaomi Dalvik/2.1.0 (Linux; U; Android 12; Redmi Note 7 Pro Build/SQ3A.220705.004)",
+        """获取书籍阅读信息
+        优先使用 /web/book/getProgress，失败时返回默认值
+        """
+        try:
+            self.session.get(WEREAD_URL)
+            
+            # 尝试新的 getProgress 端点
+            params = dict(bookId=bookId)
+            r = self.session.get(
+                "https://weread.qq.com/web/book/getProgress",
+                params=params
+            )
+            
+            # 更新 cookies
+            if 'set-cookie' in r.headers or 'Set-Cookie' in r.headers:
+                sc = r.headers.get('set-cookie') or r.headers.get('Set-Cookie')
+                if sc:
+                    self._update_cookies_from_response(sc)
+            
+            if r.ok:
+                data = r.json()
+                if (data.get("errCode") == 0 or data.get("errCode") is None
+                        or data.get("errcode") == 0):
+                    # 有效的响应
+                    if "book" in data:
+                        return data
+                    elif "info" in data:
+                        return data.get("info", {})
+                    else:
+                        return data
+        except Exception:
+            pass
+        
+        # 回退：返回最小必要的结构
+        return {
+            "bookId": bookId,
+            "markedStatus": 2,  # 默认为在读
+            "readingProgress": 0,
+            "readingTime": 0,
+            "totalReadDay": 0,
+            "readDetail": {},
+            "bookInfo": {}
         }
-        r = self.session.get(WEREAD_READ_INFO_URL,headers=headers, params=params)
-        if r.ok:
-            return r.json()
-        else:
-            errcode = r.json().get("errcode",0)
-            self.handle_errcode(errcode)
-            raise Exception(f"get {bookId} read info failed {r.text}")
 
     @retry(stop_max_attempt_number=3, wait_fixed=5000)
     def get_review_list(self, bookId):
