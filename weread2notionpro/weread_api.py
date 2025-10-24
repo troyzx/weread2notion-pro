@@ -30,12 +30,12 @@ class WeReadApi:
         self.session.headers.update(self._get_headers())
 
     def _get_headers(self):
-        """获取标准的浏览器请求头"""
+        """获取标准的浏览器请求头 - 参考 ObsidianWeRead 插件"""
         return {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
                           'AppleWebKit/537.36 (KHTML, like Gecko) '
-                          'Chrome/91.0.4472.124 Safari/537.36',
-            'Accept': 'application/json, text/plain, */*',
+                          'Chrome/73.0.3683.103 Safari/537.36',
+            'accept': 'application/json, text/plain, */*',
             'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
             'Accept-Encoding': 'gzip, deflate, br',
             'Content-Type': 'application/json',
@@ -129,6 +129,20 @@ class WeReadApi:
                 raise RuntimeError(f"Could not get bookshelf {r.text}")
         return {"books": [], "bookProgress": [], "archive": []}
     
+    def refresh_cookies_from_homepage(self):
+        """从主页响应刷新 Cookie - 基于 ObsidianWeRead 的方法"""
+        try:
+            r = self.session.get(WEREAD_URL)
+            
+            # 提取响应头中的 set-cookie
+            set_cookie_header = (r.headers.get('set-cookie') or
+                                 r.headers.get('Set-Cookie'))
+            if set_cookie_header:
+                self._update_cookies_from_response(set_cookie_header)
+        except Exception:
+            # 静默处理，不影响流程
+            pass
+
     def _update_cookies_from_response(self, set_cookie_header):
         """从 set-cookie 响应头中提取并更新 cookies"""
         try:
@@ -140,10 +154,11 @@ class WeReadApi:
                 if '=' in cookie:
                     key, value = cookie.split('=', 1)
                     key = key.strip()
-                    if key.lower() not in ['path', 'domain', 'httponly', 'secure', 'max-age', 'expires']:
+                    if key.lower() not in ['path', 'domain', 'httponly',
+                                          'secure', 'max-age', 'expires']:
                         # 这是一个真正的 cookie
                         self.session.cookies.set(key, value.strip())
-        except Exception as e:
+        except Exception:
             # 静默处理，不影响流程
             pass
         
@@ -156,8 +171,7 @@ class WeReadApi:
             errcode = data.get("errcode", 0) if isinstance(data, dict) else 0
         
         if errcode == -2012 or errcode == -2010:
-            print("::error::微信读书Cookie过期了，请参考文档重新设置。"
-                  "https://mp.weixin.qq.com/s/B_mqLUZv7M1rmXRsMlBf7A")
+            print("::error::Cookie invalid or expired. ")
 
     @retry(stop_max_attempt_number=3, wait_fixed=5000)
     def get_notebooklist(self):
@@ -210,18 +224,38 @@ class WeReadApi:
 
     @retry(stop_max_attempt_number=3, wait_fixed=5000)
     def get_bookmark_list(self, bookId):
-        self.session.get(WEREAD_URL)
-        params = dict(bookId=bookId)
-        r = self.session.get(WEREAD_BOOKMARKLIST_URL, params=params)
-        if r.ok:
-            with open("bookmark.json","w") as f:
-                f.write(json.dumps(r.json(),indent=4,ensure_ascii=False))
-            bookmarks = r.json().get("updated")
-            return bookmarks
-        else:
-            errcode = r.json().get("errcode",0)
-            self.handle_errcode(errcode)
-            raise Exception(f"Could not get {bookId} bookmark list")
+        """获取书籍的划线列表
+        需要先访问主页和笔记本API来建立完整的Session状态
+        """
+        try:
+            # 步骤 1: 访问主页
+            self.session.get(WEREAD_URL)
+            
+            # 步骤 2: 访问笔记本API来建立完整的Session状态
+            # 这一步很重要，否则划线API会返回 -2012（登录超时）
+            self.session.get("https://weread.qq.com/api/user/notebook")
+            
+            # 步骤 3: 获取划线列表
+            params = dict(bookId=bookId)
+            r = self.session.get(WEREAD_BOOKMARKLIST_URL, params=params)
+            
+            if r.ok:
+                data = r.json()
+                
+                # 检查是否有错误
+                if data.get("errCode") == -2012 or data.get("errCode") == -2010:
+                    self.handle_errcode(data.get("errCode"))
+                    return []
+                
+                # 返回划线列表
+                bookmarks = data.get("updated", [])
+                return bookmarks if bookmarks else []
+            else:
+                # HTTP 请求失败
+                return []
+        except Exception as e:
+            print(f"⚠️  获取划线列表失败 (BookId: {bookId}): {e}")
+            return []
 
     @retry(stop_max_attempt_number=3, wait_fixed=5000)
     def get_read_info(self, bookId):
@@ -288,21 +322,45 @@ class WeReadApi:
 
     @retry(stop_max_attempt_number=3, wait_fixed=5000)
     def get_review_list(self, bookId):
-        self.session.get(WEREAD_URL)
-        params = dict(bookId=bookId, listType=11, mine=1, syncKey=0)
-        r = self.session.get(WEREAD_REVIEW_LIST_URL, params=params)
-        if r.ok:
-            reviews = r.json().get("reviews")
-            reviews = list(map(lambda x: x.get("review"), reviews))
-            reviews = [
-                {"chapterUid": 1000000, **x} if x.get("type") == 4 else x
-                for x in reviews
-            ]
-            return reviews
-        else:
-            errcode = r.json().get("errcode",0)
-            self.handle_errcode(errcode)
-            raise Exception(f"get {bookId} review list failed {r.text}")
+        """获取书籍的笔记/书评列表 - 基于 ObsidianWeRead"""
+        try:
+            # 刷新 Cookie
+            self.refresh_cookies_from_homepage()
+            
+            # 获取笔记列表 - synckey 参数必须小写
+            params = dict(bookId=bookId, listType=11, mine=1, synckey=0)
+            r = self.session.get(WEREAD_REVIEW_LIST_URL, params=params)
+            
+            if r.ok:
+                data = r.json()
+                
+                # 处理 -2012 错误
+                if data.get("errCode") == -2012:
+                    print("Got -2012 error, will retry...")
+                    return []
+                
+                # 处理笔记列表
+                reviews = data.get("reviews")
+                if not reviews:
+                    return []
+                
+                # 提取实际的笔记内容
+                reviews = [x.get("review") for x in reviews
+                           if x.get("review")]
+                
+                # 为点评类型添加 chapterUid
+                reviews = [
+                    {"chapterUid": 1000000, **x}
+                    if x.get("type") == 4 else x
+                    for x in reviews
+                ]
+                return reviews
+            else:
+                # HTTP 请求失败
+                return []
+        except Exception as e:
+            print("获取笔记列表失败 (BookId: {}): {}".format(bookId, e))
+            return []
 
 
 
@@ -321,29 +379,58 @@ class WeReadApi:
 
     @retry(stop_max_attempt_number=3, wait_fixed=5000)
     def get_chapter_info(self, bookId):
-        self.session.get(WEREAD_URL)
-        body = {"bookIds": [bookId], "synckeys": [0], "teenmode": 0}
-        r = self.session.post(WEREAD_CHAPTER_INFO, json=body)
-        if (
-            r.ok
-            and "data" in r.json()
-            and len(r.json()["data"]) == 1
-            and "updated" in r.json()["data"][0]
-        ):
-            update = r.json()["data"][0]["updated"]
-            update.append(
-                {
-                    "chapterUid": 1000000,
-                    "chapterIdx": 1000000,
-                    "updateTime": 1683825006,
-                    "readAhead": 0,
-                    "title": "点评",
-                    "level": 1,
-                }
-            )
-            return {item["chapterUid"]: item for item in update}
-        else:
-            raise Exception(f"get {bookId} chapter info failed {r.text}")
+        """获取书籍的章节信息
+        需要先访问主页和笔记本API来建立完整的Session状态
+        """
+        try:
+            # 步骤 1: 访问主页
+            self.session.get(WEREAD_URL)
+            
+            # 步骤 2: 访问笔记本API来建立完整的Session状态
+            # 这一步很重要，否则章节API会返回 -2012（登录超时）
+            self.session.get("https://weread.qq.com/api/user/notebook")
+            
+            # 步骤 3: 获取章节信息
+            body = {"bookIds": [bookId], "synckeys": [0], "teenmode": 0}
+            r = self.session.post(WEREAD_CHAPTER_INFO, json=body)
+            
+            if r.ok:
+                data = r.json()
+                
+                # 检查是否有错误
+                if data.get("errCode") == -2012 or data.get("errCode") == -2010:
+                    self.handle_errcode(data.get("errCode"))
+                    return {}
+                
+                # 检查数据结构
+                if (
+                    "data" in data
+                    and len(data["data"]) >= 1
+                    and "updated" in data["data"][0]
+                ):
+                    update = data["data"][0]["updated"]
+                    
+                    # 添加点评章节
+                    update.append(
+                        {
+                            "chapterUid": 1000000,
+                            "chapterIdx": 1000000,
+                            "updateTime": 1683825006,
+                            "readAhead": 0,
+                            "title": "点评",
+                            "level": 1,
+                        }
+                    )
+                    
+                    return {item["chapterUid"]: item for item in update}
+                
+                return {}
+            else:
+                # HTTP 请求失败
+                return {}
+        except Exception as e:
+            print(f"⚠️  获取章节信息失败 (BookId: {bookId}): {e}")
+            return {}
 
     def transform_id(self, book_id):
         id_length = len(book_id)

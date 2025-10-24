@@ -329,16 +329,53 @@ class NotionHelper:
         key = f"{id}{name}"
         if key in self.__cache:
             return self.__cache.get(key)
-        filter = {"property": "标题", "title": {"equals": name}}
-        response = self.query(database_id=id, filter=filter)
-        if len(response.get("results")) == 0:
+
+        # 使用新版 data_source API 直接查询
+        auth_token = os.getenv("NOTION_TOKEN")
+        headers = {
+            "Authorization": f"Bearer {auth_token}",
+            "Notion-Version": "2025-09-03",
+            "Content-Type": "application/json",
+        }
+
+        # 步骤 1: 获取数据库的 data_source_id
+        db_url = f"https://api.notion.com/v1/databases/{id}"
+        db_response = self.client.client.get(db_url, headers=headers)
+
+        if db_response.status_code != 200:
+            raise Exception(f"获取数据库 {id} 失败: HTTP {db_response.status_code}, {db_response.text}")
+
+        db_data = db_response.json()
+
+        # 获取 data_sources
+        data_sources = db_data.get("data_sources", [])
+        if not data_sources:
+            raise Exception(f"数据库 {id} 没有 data_sources")
+
+        data_source_id = data_sources[0]["id"]
+
+        # 步骤 2: 用 data_source_id 查询数据
+        filter_condition = {"property": "标题", "title": {"equals": name}}
+        body = {"filter": filter_condition, "page_size": 1}
+
+        query_url = f"https://api.notion.com/v1/data_sources/{data_source_id}/query"
+        response = self.client.client.post(query_url, json=body, headers=headers)
+
+        if response.status_code != 200:
+            raise Exception(f"查询 data_source {data_source_id} 失败: HTTP {response.status_code}, {response.text}")
+
+        response_data = response.json()
+        results = response_data.get("results", [])
+
+        if len(results) == 0:
             parent = {"database_id": id, "type": "database_id"}
             properties["标题"] = get_title(name)
             page_id = self.client.pages.create(
                 parent=parent, properties=properties, icon=get_icon(icon)
             ).get("id")
         else:
-            page_id = response.get("results")[0].get("id")
+            page_id = results[0].get("id")
+
         self.__cache[key] = page_id
         return page_id
 
@@ -514,19 +551,70 @@ class NotionHelper:
 
     @retry(stop_max_attempt_number=3, wait_fixed=5000)
     def query_all_by_book(self, database_id, filter):
+        """获取database中所有的数据，支持过滤"""
+        if not database_id:
+            return []
+        
         results = []
+        auth_token = os.getenv("NOTION_TOKEN")
+        headers = {
+            "Authorization": f"Bearer {auth_token}",
+            "Notion-Version": "2025-09-03",
+            "Content-Type": "application/json",
+        }
+        
+        # 步骤 1: 获取数据库的 data_source_id
+        db_url = f"https://api.notion.com/v1/databases/{database_id}"
+        db_response = self.client.client.get(
+            db_url,
+            headers=headers
+        )
+        db_data = db_response.json()
+        
+        # 检查是否成功获取
+        if db_response.status_code != 200:
+            print(f"⚠️  获取数据库 {database_id} 失败: "
+                  f"{db_data.get('message', 'Unknown error')}")
+            return []
+        
+        # 获取 data_sources
+        data_sources = db_data.get("data_sources", [])
+        if not data_sources:
+            print(f"⚠️  数据库 {database_id} 没有 data_sources")
+            return []
+        
+        data_source_id = data_sources[0]["id"]
+        
+        # 步骤 2: 用 data_source_id 查询数据
         has_more = True
         start_cursor = None
+        
         while has_more:
-            response = self.client.databases.query(
-                database_id=database_id,
-                filter=filter,
-                start_cursor=start_cursor,
-                page_size=100,
+            body = {"page_size": 100}
+            if filter:
+                body["filter"] = filter
+            if start_cursor:
+                body["start_cursor"] = start_cursor
+            query_url = (
+                "https://api.notion.com/v1/data_sources/"
+                f"{data_source_id}/query"
             )
-            start_cursor = response.get("next_cursor")
-            has_more = response.get("has_more")
-            results.extend(response.get("results"))
+            response = self.client.client.post(
+                query_url,
+                json=body,
+                headers=headers
+            )
+            response_data = response.json()
+            
+            if response.status_code != 200:
+                print(f"⚠️  查询 data_source {data_source_id} 失败: "
+                      f"{response_data.get('message', 'Unknown error')}")
+                break
+            
+            start_cursor = response_data.get("next_cursor")
+            has_more = response_data.get("has_more")
+            results.extend(response_data.get("results", []))
+        
         return results
 
     @retry(stop_max_attempt_number=3, wait_fixed=5000)

@@ -14,56 +14,85 @@ from weread2notionpro.utils import (
 
 def get_bookmark_list(page_id, bookId):
     """获取我的划线"""
-    filter = {
-        "and": [
-            {"property": "书籍", "relation": {"contains": page_id}},
-            {"property": "blockId", "rich_text": {"is_not_empty": True}},
-        ]
-    }
-    results = notion_helper.query_all_by_book(
-        notion_helper.bookmark_database_id, filter
-    )
-    dict1 = {
-        get_rich_text_from_result(x, "bookmarkId"): get_rich_text_from_result(
-            x, "blockId"
+    try:
+        filter = {
+            "and": [
+                {"property": "书籍", "relation": {"contains": page_id}},
+                {"property": "blockId", "rich_text": {"is_not_empty": True}},
+            ]
+        }
+        results = notion_helper.query_all_by_book(
+            notion_helper.bookmark_database_id, filter
         )
-        for x in results
-    }
-    dict2 = {get_rich_text_from_result(x, "blockId"): x.get("id") for x in results}
-    bookmarks = weread_api.get_bookmark_list(bookId)
-    for i in bookmarks:
-        if i.get("bookmarkId") in dict1:
-            i["blockId"] = dict1.pop(i.get("bookmarkId"))
-    for blockId in dict1.values():
-        notion_helper.delete_block(blockId)
-        notion_helper.delete_block(dict2.get(blockId))
-    return bookmarks
+        dict1 = {
+            get_rich_text_from_result(x, "bookmarkId"): get_rich_text_from_result(
+                x, "blockId"
+            )
+            for x in results
+        }
+        dict2 = {
+            get_rich_text_from_result(x, "blockId"): x.get("id")
+            for x in results
+        }
+        
+        # 获取划线列表
+        bookmarks = weread_api.get_bookmark_list(bookId)
+        print(f"✅ 获取到 {len(bookmarks)} 条划线")
+        # 匹配 blockId
+        if bookmarks:
+            for i in bookmarks:
+                if i.get("bookmarkId") in dict1:
+                    i["blockId"] = dict1.pop(i.get("bookmarkId"))
+        # 删除旧的划线
+        for blockId in dict1.values():
+            notion_helper.delete_block(blockId)
+            notion_helper.delete_block(dict2.get(blockId))
+        return bookmarks if bookmarks else []
+    except Exception as e:
+        print(f"⚠️  获取划线列表异常: {e}")
+        return []
 
 
-def get_review_list(page_id,bookId):
+def get_review_list(page_id, bookId):
     """获取笔记"""
-    filter = {
-        "and": [
-            {"property": "书籍", "relation": {"contains": page_id}},
-            {"property": "blockId", "rich_text": {"is_not_empty": True}},
-        ]
-    }
-    results = notion_helper.query_all_by_book(notion_helper.review_database_id, filter)
-    dict1 = {
-        get_rich_text_from_result(x, "reviewId"): get_rich_text_from_result(
-            x, "blockId"
+    try:
+        filter = {
+            "and": [
+                {"property": "书籍", "relation": {"contains": page_id}},
+                {"property": "blockId", "rich_text": {"is_not_empty": True}},
+            ]
+        }
+        results = notion_helper.query_all_by_book(
+            notion_helper.review_database_id, filter
         )
-        for x in results
-    }
-    dict2 = {get_rich_text_from_result(x, "blockId"): x.get("id") for x in results}
-    reviews = weread_api.get_review_list(bookId)
-    for i in reviews:
-        if i.get("reviewId") in dict1:
-            i["blockId"] = dict1.pop(i.get("reviewId"))
-    for blockId in dict1.values():
-        notion_helper.delete_block(blockId)
-        notion_helper.delete_block(dict2.get(blockId))
-    return reviews
+        dict1 = {
+            get_rich_text_from_result(x, "reviewId"): get_rich_text_from_result(
+                x, "blockId"
+            )
+            for x in results
+        }
+        dict2 = {
+            get_rich_text_from_result(x, "blockId"): x.get("id")
+            for x in results
+        }
+        
+        # 获取笔记列表
+        reviews = weread_api.get_review_list(bookId)
+        
+        if reviews:
+            for i in reviews:
+                if i.get("reviewId") in dict1:
+                    i["blockId"] = dict1.pop(i.get("reviewId"))
+        
+        # 删除旧的笔记
+        for blockId in dict1.values():
+            notion_helper.delete_block(blockId)
+            notion_helper.delete_block(dict2.get(blockId))
+        
+        return reviews if reviews else []
+    except Exception as e:
+        print(f"⚠️  获取笔记列表异常: {e}")
+        return []
 
 
 def check(bookId):
