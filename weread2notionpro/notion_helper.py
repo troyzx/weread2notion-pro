@@ -136,6 +136,8 @@ class NotionHelper:
         id = response.get("id")
         properties = response.get("properties")
         update_properties = {}
+        if properties is None:
+            return
         if (
             properties.get("阅读时长") is None
             or properties.get("阅读时长").get("type") != "number"
@@ -428,7 +430,23 @@ class NotionHelper:
     @retry(stop_max_attempt_number=3, wait_fixed=5000)
     def query(self, **kwargs):
         kwargs = {k: v for k, v in kwargs.items() if v}
-        return self.client.databases.query(**kwargs)
+        database_id = kwargs.pop("database_id")
+        body = kwargs
+        # 在新版本的 notion-client 中，使用 client.client 来访问底层的 httpx 客户端
+        import json
+        auth_token = os.getenv("NOTION_TOKEN")
+        headers = {
+            "Authorization": f"Bearer {auth_token}",
+            "Notion-Version": "2022-06-28",
+            "Content-Type": "application/json",
+        }
+        url = f"https://api.notion.com/v1/databases/{database_id}/query"
+        response = self.client.client.post(
+            url,
+            content=json.dumps(body),
+            headers=headers
+        )
+        return response.json()
 
     @retry(stop_max_attempt_number=3, wait_fixed=5000)
     def get_block_children(self, id):
@@ -505,14 +523,28 @@ class NotionHelper:
         has_more = True
         start_cursor = None
         while has_more:
-            response = self.client.databases.query(
-                database_id=database_id,
-                start_cursor=start_cursor,
-                page_size=100,
+            # 使用直接 HTTP 调用来查询数据库
+            import json
+            auth_token = os.getenv("NOTION_TOKEN")
+            headers = {
+                "Authorization": f"Bearer {auth_token}",
+                "Notion-Version": "2022-06-28",
+                "Content-Type": "application/json",
+            }
+            body = {
+                "start_cursor": start_cursor,
+                "page_size": 100,
+            }
+            url = f"https://api.notion.com/v1/databases/{database_id}/query"
+            response = self.client.client.post(
+                url,
+                content=json.dumps(body),
+                headers=headers
             )
-            start_cursor = response.get("next_cursor")
-            has_more = response.get("has_more")
-            results.extend(response.get("results"))
+            response_data = response.json()
+            start_cursor = response_data.get("next_cursor")
+            has_more = response_data.get("has_more")
+            results.extend(response_data.get("results", []))
         return results
 
     def get_date_relation(self, properties, date):

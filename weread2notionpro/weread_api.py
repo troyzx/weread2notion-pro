@@ -26,6 +26,20 @@ class WeReadApi:
         self.cookie = self.get_cookie()
         self.session = requests.Session()
         self.session.cookies = self.parse_cookie_string()
+        # 设置标准的浏览器请求头
+        self.session.headers.update(self._get_headers())
+
+    def _get_headers(self):
+        """获取标准的浏览器请求头"""
+        return {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                          'AppleWebKit/537.36 (KHTML, like Gecko) '
+                          'Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Content-Type': 'application/json',
+        }
 
     def try_get_cloud_cookie(self, url, id, password):
         if url.endswith("/"):
@@ -61,32 +75,57 @@ class WeReadApi:
     def parse_cookie_string(self):
         cookies_dict = {}
         
-        # 使用正则表达式解析 cookie 字符串
-        pattern = re.compile(r'([^=]+)=([^;]+);?\s*')
-        matches = pattern.findall(self.cookie)
+        # 按分号分割 cookie
+        cookie_pairs = self.cookie.split(';')
         
-        for key, value in matches:
-            cookies_dict[key] = value.encode('unicode_escape').decode('ascii')
+        for pair in cookie_pairs:
+            pair = pair.strip()
+            if '=' in pair:
+                key, value = pair.split('=', 1)
+                key = key.strip()
+                value = value.strip()
+                if key:  # 只添加非空的键
+                    cookies_dict[key] = value
+        
         # 直接使用 cookies_dict 创建 cookiejar
         cookiejar = cookiejar_from_dict(cookies_dict)
         
         return cookiejar
 
     def get_bookshelf(self):
+        """获取书架列表"""
         self.session.get(WEREAD_URL)
-        r = self.session.get(
-            "https://i.weread.qq.com/shelf/sync?synckey=0&teenmode=0&album=1&onlyBookid=0"
-        )
+        # 使用新的 API 端点替代 /shelf/sync
+        # /api/user/notebook 直接返回数据（无需检查 errcode）
+        r = self.session.get("https://weread.qq.com/api/user/notebook")
         if r.ok:
-            return r.json()
-        else:
-            errcode = r.json().get("errcode",0)
-            self.handle_errcode(errcode)
-            raise Exception(f"Could not get bookshelf {r.text}")
+            data = r.json()
+            # 新 API 直接返回书籍列表，不需要检查错误代码
+            if "books" in data:
+                # 返回完整响应，以保持向后兼容性
+                # 新 API 不提供 bookProgress 和 archive，添加空值
+                if "bookProgress" not in data:
+                    data["bookProgress"] = []
+                if "archive" not in data:
+                    data["archive"] = []
+                return data
+            else:
+                # 如果没有 books 字段，可能是错误响应
+                self.handle_errcode(data)
+                raise RuntimeError(f"Could not get bookshelf {r.text}")
+        return {"books": [], "bookProgress": [], "archive": []}
         
-    def handle_errcode(self,errcode):
-        if( errcode== -2012 or errcode==-2010):
-            print(f"::error::微信读书Cookie过期了，请参考文档重新设置。https://mp.weixin.qq.com/s/B_mqLUZv7M1rmXRsMlBf7A")
+    def handle_errcode(self, data):
+        """处理错误代码"""
+        # 如果 data 是整数，直接使用
+        if isinstance(data, int):
+            errcode = data
+        else:
+            errcode = data.get("errcode", 0) if isinstance(data, dict) else 0
+        
+        if errcode == -2012 or errcode == -2010:
+            print("::error::微信读书Cookie过期了，请参考文档重新设置。"
+                  "https://mp.weixin.qq.com/s/B_mqLUZv7M1rmXRsMlBf7A")
 
     @retry(stop_max_attempt_number=3, wait_fixed=5000)
     def get_notebooklist(self):
