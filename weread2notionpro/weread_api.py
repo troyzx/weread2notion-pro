@@ -225,18 +225,21 @@ class WeReadApi:
 
     @retry(stop_max_attempt_number=3, wait_fixed=5000)
     def get_read_info(self, bookId):
-        """获取书籍阅读信息
-        优先使用 /web/book/getProgress，失败时返回默认值
+        """获取书籍阅读进度信息
+        使用 /web/book/getProgress 端点获取阅读时间和进度
         """
         try:
+            # 先访问主页激活 session
             self.session.get(WEREAD_URL)
             
-            # 尝试新的 getProgress 端点
+            # 然后调用 /api/user/notebook 来建立完整的 session 状态
+            # 这一步很重要，否则 /web/book/getProgress 会返回 -2012
+            self.session.get("https://weread.qq.com/api/user/notebook")
+            
+            # 使用新的 getProgress 端点
+            url = "https://weread.qq.com/web/book/getProgress"
             params = dict(bookId=bookId)
-            r = self.session.get(
-                "https://weread.qq.com/web/book/getProgress",
-                params=params
-            )
+            r = self.session.get(url, params=params)
             
             # 更新 cookies
             if 'set-cookie' in r.headers or 'Set-Cookie' in r.headers:
@@ -246,15 +249,29 @@ class WeReadApi:
             
             if r.ok:
                 data = r.json()
-                if (data.get("errCode") == 0 or data.get("errCode") is None
+                # 检查错误状态 (成功时 errCode 不存在或为 0)
+                if (data.get("errCode") is None or data.get("errCode") == 0
                         or data.get("errcode") == 0):
-                    # 有效的响应
-                    if "book" in data:
-                        return data
-                    elif "info" in data:
-                        return data.get("info", {})
-                    else:
-                        return data
+                    # 提取 book 字段中的阅读进度
+                    if "book" in data and data.get("book"):
+                        book_info = data["book"]
+                        return {
+                            "bookId": bookId,
+                            "markedStatus": 2,  # 默认在读
+                            "readingProgress": book_info.get("progress", 0),
+                            "readingTime": book_info.get("readingTime", 0),
+                            "totalReadDay": 0,
+                            "readDetail": {
+                                "totalReadingTime":
+                                book_info.get("readingTime", 0),
+                                "beginReadingDate":
+                                book_info.get("startReadingTime", 0),
+                                "lastReadingDate":
+                                book_info.get("updateTime", 0),
+                            },
+                            "bookInfo": {}
+                        }
+                    return data
         except Exception:
             pass
         

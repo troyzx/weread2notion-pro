@@ -43,37 +43,14 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install -e .
       - name: Remove folder
         run: rm -rf ./OUT_FOLDER
       - name: Set default year if not provided
         run: echo "YEAR=$(date +"%Y")" >> $GITHUB_ENV
         if: env.YEAR == ''
-      - name: Set default colors
-        run: |
-          # 设置默认颜色，如果没有在 vars 中定义则使用默认值
-          BG_COLOR="${{ vars.background_color }}"
-          [[ -z "$BG_COLOR" ]] && BG_COLOR="#FFFFFF"
-          TRACK_COLOR="${{ vars.track_color }}"
-          [[ -z "$TRACK_COLOR" ]] && TRACK_COLOR="#ACE7AE"
-          SPECIAL_COLOR="${{ vars.special_color }}"
-          [[ -z "$SPECIAL_COLOR" ]] && SPECIAL_COLOR="#69C16E"
-          SPECIAL_COLOR2="${{ vars.special_color2 }}"
-          [[ -z "$SPECIAL_COLOR2" ]] && SPECIAL_COLOR2="#549F57"
-          DOM_COLOR="${{ vars.dom_color }}"
-          [[ -z "$DOM_COLOR" ]] && DOM_COLOR="#EBEDF0"
-          TEXT_COLOR="${{ vars.text_color }}"
-          [[ -z "$TEXT_COLOR" ]] && TEXT_COLOR="#000000"
-          
-          echo "BG_COLOR=$BG_COLOR" >> $GITHUB_ENV
-          echo "TRACK_COLOR=$TRACK_COLOR" >> $GITHUB_ENV
-          echo "SPECIAL_COLOR=$SPECIAL_COLOR" >> $GITHUB_ENV
-          echo "SPECIAL_COLOR2=$SPECIAL_COLOR2" >> $GITHUB_ENV
-          echo "DOM_COLOR=$DOM_COLOR" >> $GITHUB_ENV
-          echo "TEXT_COLOR=$TEXT_COLOR" >> $GITHUB_ENV
       - name: weread heatmap
         run: |
-          github_heatmap weread --year $YEAR  --me "${{secrets.NAME}}" --with-animation --background-color=$BG_COLOR --track-color=$TRACK_COLOR --special-color1=$SPECIAL_COLOR --special-color2=$SPECIAL_COLOR2 --dom-color=$DOM_COLOR --text-color=$TEXT_COLOR
+          github_heatmap weread --year $YEAR  --me "${{secrets.NAME}}" --with-animation --background-color=${{ vars.background_color||'#FFFFFF'}} --track-color=${{ vars.track_color||'#ACE7AE'}} --special-color1=${{ vars.special_color||'#69C16E'}} --special-color2=${{ vars.special_color2||'#549F57'}} --dom-color=${{ vars.dom_color||'#EBEDF0'}} --text-color=${{ vars.text_color||'#000000'}}
       - name: push
         run: |		
             git checkout --orphan output		

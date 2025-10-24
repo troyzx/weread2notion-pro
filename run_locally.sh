@@ -8,9 +8,9 @@ set -e
 # 激活虚拟环境
 source .venv/bin/activate
 
-# 设置环境变量 (请从 .env 文件或 GitHub Secrets 中读取)
+# 设置环境变量
 export NOTION_TOKEN=${NOTION_TOKEN:-"your_notion_token_here"}
-export NOTION_PAGE=${NOTION_PAGE:-"your_notion_page_id_here"}
+export NOTION_PAGE=${NOTION_PAGE:-"2968ad5345be8167b688fea58d6f9101"}
 export WEREAD_COOKIE=${WEREAD_COOKIE:-"your_weread_cookie_here"}
 
 # 可选的环境变量（注释掉的）
