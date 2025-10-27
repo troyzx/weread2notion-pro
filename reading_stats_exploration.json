@@ -1,0 +1,296 @@
+[
+  {
+    "method": "GET",
+    "url": "https://weread.qq.com/web/readdata/stats",
+    "params": null,
+    "json_data": null,
+    "description": "阅读统计数据",
+    "status_code": 404,
+    "success": false,
+    "response_length": 2768,
+    "response": "<!DOCTYPE html>\n<html lang=\"zh-cmn\">\n<head>\n    <title>404 Not Found</title>\n    <meta charset=\"UTF-8\"/>\n    <meta http-equiv=\"X-UA-Compatible\" content=\"IE=Edge\"/>\n    <meta content=\"no-siteapp\" http-...",
+    "is_json": false
+  },
+  {
+    "method": "GET",
+    "url": "https://weread.qq.com/web/readdata/summary/v2",
+    "params": null,
+    "json_data": null,
+    "description": "阅读摘要 V2",
+    "status_code": 404,
+    "success": false,
+    "response_length": 2768,
+    "response": "<!DOCTYPE html>\n<html lang=\"zh-cmn\">\n<head>\n    <title>404 Not Found</title>\n    <meta charset=\"UTF-8\"/>\n    <meta http-equiv=\"X-UA-Compatible\" content=\"IE=Edge\"/>\n    <meta content=\"no-siteapp\" http-...",
+    "is_json": false
+  },
+  {
+    "method": "GET",
+    "url": "https://weread.qq.com/web/readdata/detail/v2",
+    "params": null,
+    "json_data": null,
+    "description": "阅读详情 V2",
+    "status_code": 404,
+    "success": false,
+    "response_length": 2768,
+    "response": "<!DOCTYPE html>\n<html lang=\"zh-cmn\">\n<head>\n    <title>404 Not Found</title>\n    <meta charset=\"UTF-8\"/>\n    <meta http-equiv=\"X-UA-Compatible\" content=\"IE=Edge\"/>\n    <meta content=\"no-siteapp\" http-...",
+    "is_json": false
+  },
+  {
+    "method": "GET",
+    "url": "https://weread.qq.com/api/readdata/summary",
+    "params": null,
+    "json_data": null,
+    "description": "API 阅读摘要",
+    "status_code": 404,
+    "success": false,
+    "response_length": 185,
+    "response": {
+      "url": "/api/readdata/summary",
+      "statusCode": 404,
+      "statusMessage": "Page not found: /api/readdata/summary",
+      "message": "Cgi Request Error",
+      "stack": "",
+      "data": {
+        "path": "/api/readdata/summary"
+      }
+    },
+    "is_json": true,
+    "errCode": null
+  },
+  {
+    "method": "GET",
+    "url": "https://weread.qq.com/api/readdata/detail",
+    "params": null,
+    "json_data": null,
+    "description": "API 阅读详情",
+    "status_code": 404,
+    "success": false,
+    "response_length": 182,
+    "response": {
+      "url": "/api/readdata/detail",
+      "statusCode": 404,
+      "statusMessage": "Page not found: /api/readdata/detail",
+      "message": "Cgi Request Error",
+      "stack": "",
+      "data": {
+        "path": "/api/readdata/detail"
+      }
+    },
+    "is_json": true,
+    "errCode": null
+  },
+  {
+    "method": "GET",
+    "url": "https://weread.qq.com/api/user/reading/stats",
+    "params": null,
+    "json_data": null,
+    "description": "用户阅读统计",
+    "status_code": 404,
+    "success": false,
+    "response_length": 191,
+    "response": {
+      "url": "/api/user/reading/stats",
+      "statusCode": 404,
+      "statusMessage": "Page not found: /api/user/reading/stats",
+      "message": "Cgi Request Error",
+      "stack": "",
+      "data": {
+        "path": "/api/user/reading/stats"
+      }
+    },
+    "is_json": true,
+    "errCode": null
+  },
+  {
+    "method": "GET",
+    "url": "https://weread.qq.com/api/user/reading/history",
+    "params": null,
+    "json_data": null,
+    "description": "用户阅读历史",
+    "status_code": 404,
+    "success": false,
+    "response_length": 197,
+    "response": {
+      "url": "/api/user/reading/history",
+      "statusCode": 404,
+      "statusMessage": "Page not found: /api/user/reading/history",
+      "message": "Cgi Request Error",
+      "stack": "",
+      "data": {
+        "path": "/api/user/reading/history"
+      }
+    },
+    "is_json": true,
+    "errCode": null
+  },
+  {
+    "method": "GET",
+    "url": "https://i.weread.qq.com/user/reading/stats",
+    "params": null,
+    "json_data": null,
+    "description": "移动端阅读统计",
+    "status_code": 404,
+    "success": false,
+    "response_length": 0,
+    "response": "",
+    "is_json": false
+  },
+  {
+    "method": "GET",
+    "url": "https://i.weread.qq.com/user/reading/summary",
+    "params": null,
+    "json_data": null,
+    "description": "移动端阅读摘要",
+    "status_code": 404,
+    "success": false,
+    "response_length": 0,
+    "response": "",
+    "is_json": false
+  },
+  {
+    "method": "GET",
+    "url": "https://weread.qq.com/api/user/notebook/stats",
+    "params": null,
+    "json_data": null,
+    "description": "笔记本统计",
+    "status_code": 404,
+    "success": false,
+    "response_length": 194,
+    "response": {
+      "url": "/api/user/notebook/stats",
+      "statusCode": 404,
+      "statusMessage": "Page not found: /api/user/notebook/stats",
+      "message": "Cgi Request Error",
+      "stack": "",
+      "data": {
+        "path": "/api/user/notebook/stats"
+      }
+    },
+    "is_json": true,
+    "errCode": null
+  },
+  {
+    "method": "GET",
+    "url": "https://weread.qq.com/api/user/reading/progress",
+    "params": null,
+    "json_data": null,
+    "description": "阅读进度统计",
+    "status_code": 404,
+    "success": false,
+    "response_length": 200,
+    "response": {
+      "url": "/api/user/reading/progress",
+      "statusCode": 404,
+      "statusMessage": "Page not found: /api/user/reading/progress",
+      "message": "Cgi Request Error",
+      "stack": "",
+      "data": {
+        "path": "/api/user/reading/progress"
+      }
+    },
+    "is_json": true,
+    "errCode": null
+  },
+  {
+    "method": "GET",
+    "url": "https://weread.qq.com/web/user/profile/stats",
+    "params": null,
+    "json_data": null,
+    "description": "用户资料统计",
+    "status_code": 404,
+    "success": false,
+    "response_length": 2768,
+    "response": "<!DOCTYPE html>\n<html lang=\"zh-cmn\">\n<head>\n    <title>404 Not Found</title>\n    <meta charset=\"UTF-8\"/>\n    <meta http-equiv=\"X-UA-Compatible\" content=\"IE=Edge\"/>\n    <meta content=\"no-siteapp\" http-...",
+    "is_json": false
+  },
+  {
+    "method": "GET",
+    "url": "https://weread.qq.com/api/user/profile/reading",
+    "params": null,
+    "json_data": null,
+    "description": "用户阅读资料",
+    "status_code": 404,
+    "success": false,
+    "response_length": 197,
+    "response": {
+      "url": "/api/user/profile/reading",
+      "statusCode": 404,
+      "statusMessage": "Page not found: /api/user/profile/reading",
+      "message": "Cgi Request Error",
+      "stack": "",
+      "data": {
+        "path": "/api/user/profile/reading"
+      }
+    },
+    "is_json": true,
+    "errCode": null
+  },
+  {
+    "method": "GET",
+    "url": "https://weread.qq.com/web/readdata/summary",
+    "params": {
+      "synckey": 0,
+      "type": "daily"
+    },
+    "json_data": null,
+    "description": "每日阅读摘要",
+    "status_code": 404,
+    "success": false,
+    "response_length": 2768,
+    "response": "<!DOCTYPE html>\n<html lang=\"zh-cmn\">\n<head>\n    <title>404 Not Found</title>\n    <meta charset=\"UTF-8\"/>\n    <meta http-equiv=\"X-UA-Compatible\" content=\"IE=Edge\"/>\n    <meta content=\"no-siteapp\" http-...",
+    "is_json": false
+  },
+  {
+    "method": "GET",
+    "url": "https://weread.qq.com/web/readdata/detail",
+    "params": {
+      "synckey": 0,
+      "type": "daily"
+    },
+    "json_data": null,
+    "description": "每日阅读详情",
+    "status_code": 404,
+    "success": false,
+    "response_length": 2768,
+    "response": "<!DOCTYPE html>\n<html lang=\"zh-cmn\">\n<head>\n    <title>404 Not Found</title>\n    <meta charset=\"UTF-8\"/>\n    <meta http-equiv=\"X-UA-Compatible\" content=\"IE=Edge\"/>\n    <meta content=\"no-siteapp\" http-...",
+    "is_json": false
+  },
+  {
+    "method": "GET",
+    "url": "https://weread.qq.com/web/annual/report",
+    "params": {
+      "year": 2024
+    },
+    "json_data": null,
+    "description": "年度报告",
+    "status_code": 404,
+    "success": false,
+    "response_length": 2768,
+    "response": "<!DOCTYPE html>\n<html lang=\"zh-cmn\">\n<head>\n    <title>404 Not Found</title>\n    <meta charset=\"UTF-8\"/>\n    <meta http-equiv=\"X-UA-Compatible\" content=\"IE=Edge\"/>\n    <meta content=\"no-siteapp\" http-...",
+    "is_json": false
+  },
+  {
+    "method": "GET",
+    "url": "https://weread.qq.com/api/annual/report",
+    "params": {
+      "year": 2024
+    },
+    "json_data": null,
+    "description": "API 年度报告",
+    "status_code": 404,
+    "success": false,
+    "response_length": 206,
+    "response": {
+      "url": "/api/annual/report?year=2024",
+      "statusCode": 404,
+      "statusMessage": "Page not found: /api/annual/report?year=2024",
+      "message": "Cgi Request Error",
+      "stack": "",
+      "data": {
+        "path": "/api/annual/report?year=2024"
+      }
+    },
+    "is_json": true,
+    "errCode": null
+  }
+]

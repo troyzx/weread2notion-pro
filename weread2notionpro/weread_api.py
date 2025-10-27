@@ -366,14 +366,281 @@ class WeReadApi:
 
     
     def get_api_data(self):
+        """
+        获取阅读历史数据
+        优先使用新的readdata/detail API，如果失败则回退到传统方法
+        """
+        print("🔍 获取阅读统计数据...")
+        
+        try:
+            # 优先使用新的详细API
+            return self.get_readtiming_detail_data()
+        except Exception as e:
+            print(f"⚠️  新API失败，使用传统方法: {e}")
+            return self._get_api_data_legacy()
+
+    @retry(stop_max_attempt_number=3, wait_fixed=5000)
+    def get_readtiming_detail_data(self):
+        """
+        从微信读书API获取详细阅读数据 - 使用新的readdata/detail API
+        返回完整的阅读统计信息，包括年度报告、阅读时间等
+        
+        返回数据结构分析:
+        - readTimes: dict - 日期时间戳 -> 阅读分钟数
+        - readDays: int - 总阅读天数
+        - totalReadTime: int - 总阅读时间(分钟)
+        - yearReport: list - 年度报告数据，每个年度包含每月阅读时间
+        - preferBooks: list - 偏好书籍列表
+        - preferCategory: list - 偏好分类统计
+        - preferAuthor: list - 偏好作者统计
+        - medals: list - 勋章成就
+        - readStat: list - 阅读统计概览
+        - shareInfo: dict - 分享信息
+        """
+        try:
+            # 优先尝试从环境变量获取移动端认证信息
+            vid = os.getenv("WEREAD_VID")
+            skey = os.getenv("WEREAD_SKEY")
+            
+            if not vid or not skey:
+                # 如果环境变量不存在，尝试从session cookies中提取（网页端）
+                vid = self.session.cookies.get("wr_vid", "")
+                skey = self.session.cookies.get("wr_skey", "")
+                
+                if vid and skey:
+                    print("📱 使用网页端cookie进行认证")
+                else:
+                    print("⚠️  未找到移动端认证信息(vid/skey)，请设置环境变量WEREAD_VID和WEREAD_SKEY")
+                    print("   或者使用传统方法获取数据")
+                    return self._get_api_data_legacy()
+            
+            print("🔍 使用新的readdata/detail API获取阅读统计数据...")
+            
+            # 使用新的API端点
+            url = "https://i.weread.qq.com/readdata/detail?baseTime=0&defaultPreferBook=0&mode=overall"
+            headers = {
+                'Accept': '*/*',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'channelId': 'AppStore',
+                'vid': vid,
+                'Host': 'i.weread.qq.com',
+                'basever': '8.2.0.34',
+                'skey': skey,
+                'v': '8.2.0.34',
+                'Accept-Language': 'zh-Hans-CN;q=1',
+                'User-Agent': 'WeRead/8.2.0 (iPad; iOS 26.0; Scale/2.00)',
+                'Content-Type': 'application/json',
+            }
+            
+            response = requests.get(url, headers=headers, timeout=30)
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                # 检查是否有错误
+                if data.get("errCode") and data["errCode"] != 0:
+                    print(f"⚠️  API返回错误: {data}")
+                    return self._get_api_data_legacy()
+                
+                print("✅ 成功获取详细阅读数据")
+                self._analyze_readtiming_data(data)
+                
+                # 转换为与原来API兼容的格式
+                return self._convert_to_readtimes_format(data)
+            else:
+                print(f"⚠️  API请求失败 (状态码: {response.status_code})，使用传统方法")
+                return self._get_api_data_legacy()
+                
+        except Exception as e:
+            print(f"⚠️  获取详细阅读数据失败: {e}，使用传统方法")
+            return self._get_api_data_legacy()
+
+    def _analyze_readtiming_data(self, data):
+        """
+        详细分析readdata/detail API返回的数据结构
+        """
+        print("\n📊 详细阅读数据分析:")
+        
+        # 基本统计信息
+        if "readTimes" in data:
+            read_times = data["readTimes"]
+            print(f"  📅 阅读时间点数: {len(read_times)}")
+            if read_times:
+                total_minutes = sum(read_times.values())
+                print(f"  ⏰ 总阅读时间: {total_minutes} 分钟")
+                print(f"  📊 覆盖天数: {len(read_times)} 天")
+        
+        if "readDays" in data:
+            print(f"  📆 累计阅读天数: {data['readDays']} 天")
+        
+        if "totalReadTime" in data:
+            print(f"  🕐 总阅读时长: {data['totalReadTime']} 分钟")
+        
+        # 阅读统计概览
+        if "readStat" in data and data["readStat"]:
+            print("  📈 阅读统计概览:")
+            for stat in data["readStat"]:
+                print(f"    • {stat.get('stat', '')}: {stat.get('counts', '')}")
+        
+        # 年度报告
+        if "yearReport" in data and data["yearReport"]:
+            print(f"  📊 年度报告: {len(data['yearReport'])} 个年度")
+            for year_data in data["yearReport"]:
+                year = year_data.get("title", "")
+                times = year_data.get("times", [])
+                if times:
+                    year_total = sum(times)
+                    print(f"    • {year}: {year_total} 分钟 ({len([t for t in times if t > 0])}个月有阅读)")
+        
+        # 偏好信息
+        if "preferBooks" in data:
+            print(f"  📚 偏好书籍数量: {len(data['preferBooks'])}")
+        
+        if "preferCategory" in data and data["preferCategory"]:
+            print(f"  🏷️  偏好分类数量: {len(data['preferCategory'])}")
+        
+        if "preferAuthor" in data and data["preferAuthor"]:
+            print(f"  ✍️  偏好作者数量: {len(data['preferAuthor'])}")
+        
+        # 勋章成就
+        if "medals" in data and data["medals"]:
+            print(f"  🏆 勋章成就数量: {len(data['medals'])}")
+        
+        # 分享信息
+        if "shareInfo" in data and data["shareInfo"]:
+            share_info = data["shareInfo"]
+            print("  📤 分享信息:")
+            if "title" in share_info:
+                print(f"    • 标题: {share_info['title']}")
+            if "totalReadingDay" in share_info:
+                print(f"    • 总阅读天数: {share_info['totalReadingDay']}")
+            if "hadReadingCount" in share_info:
+                print(f"    • 已读书籍: {share_info['hadReadingCount']}")
+            if "finishReadingCount" in share_info:
+                print(f"    • 读完书籍: {share_info['finishReadingCount']}")
+            if "notesCount" in share_info:
+                print(f"    • 笔记数量: {share_info['notesCount']}")
+
+    def _convert_to_readtimes_format(self, data):
+        """
+        将readdata/detail API的数据转换为与原来API兼容的readTimes格式
+        
+        转换逻辑:
+        1. 如果有readTimes字段，直接使用（已经是时间戳->分钟的格式）
+        2. 如果有yearReport数据，展开为每月的时间戳
+        3. 合并所有数据点
+        """
+        result_read_times = {}
+        
+        # 1. 直接使用readTimes数据（如果存在）
+        if "readTimes" in data and data["readTimes"]:
+            result_read_times.update(data["readTimes"])
+        
+        # 2. 从年度报告中提取每月数据
+        if "yearReport" in data and data["yearReport"]:
+            import time
+            import calendar
+            
+            for year_data in data["yearReport"]:
+                year = int(year_data.get("title", "0"))
+                times = year_data.get("times", [])
+                
+                # times是12个月的数据，从1月到12月
+                for month_idx, minutes in enumerate(times):
+                    if minutes > 0:  # 只处理有阅读时间的月份
+                        month = month_idx + 1  # 月份从1开始
+                        
+                        # 计算该月第一天的时间戳
+                        first_day = time.struct_time((year, month, 1, 0, 0, 0, -1, -1, -1))
+                        month_timestamp = int(time.mktime(first_day))
+                        
+                        # 如果该月没有readTimes数据，则添加
+                        if month_timestamp not in result_read_times:
+                            result_read_times[month_timestamp] = minutes
+        
+        # 3. 按时间戳排序
+        sorted_read_times = dict(sorted(result_read_times.items()))
+        
+        print(f"📊 转换完成: {len(sorted_read_times)} 个阅读数据点")
+        
+        return {"readTimes": sorted_read_times}
+
+    def _get_api_data_legacy(self):
+        """
+        获取阅读历史数据 - 传统方法（从单本书籍进度数据聚合）
+        作为新API的回退方案
+        """
+        print("🔄 使用传统方法获取阅读统计数据...")
+        
+        # 建立完整的 session 状态
         self.session.get(WEREAD_URL)
-        r = self.session.get(WEREAD_HISTORY_URL)
-        if r.ok:
-            return r.json()
-        else:
-            errcode = r.json().get("errcode",0)
-            self.handle_errcode(errcode)
-            raise Exception(f"get history data failed {r.text}")
+        self.session.get("https://weread.qq.com/api/user/notebook")
+        
+        # 获取所有书籍
+        bookshelf = self.get_bookshelf()
+        books = bookshelf.get("books", [])
+        
+        if not books:
+            print("⚠️  未找到任何书籍，返回空数据")
+            return {"readTimes": {}}
+        
+        print(f"📚 发现 {len(books)} 本书，开始收集阅读数据...")
+        
+        read_times = {}
+        total_books_processed = 0
+        
+        for book_item in books:
+            book_id = book_item.get("bookId")
+            if not book_id:
+                continue
+                
+            try:
+                # 获取书籍的阅读信息
+                read_info = self.get_read_info(book_id)
+                
+                if read_info and read_info.get("readingTime", 0) > 0:
+                    # 提取阅读时间和日期信息
+                    reading_time = read_info.get("readingTime", 0)
+                    last_reading_date = read_info.get("readDetail", {}).get("lastReadingDate", 0)
+                    
+                    if last_reading_date > 0:
+                        # 将最后阅读日期转换为当天的开始时间戳 (Unix 时间戳)
+                        import time
+                        # last_reading_date 是秒级时间戳，我们需要将其转换为当天的 00:00:00
+                        date_struct = time.localtime(last_reading_date)
+                        day_start_timestamp = int(time.mktime(time.struct_time((
+                            date_struct.tm_year, date_struct.tm_mon, date_struct.tm_mday,
+                            0, 0, 0,  # 00:00:00
+                            date_struct.tm_wday, date_struct.tm_yday, date_struct.tm_isdst
+                        ))))
+                        
+                        # 累加同一天的阅读时间
+                        if day_start_timestamp not in read_times:
+                            read_times[day_start_timestamp] = 0
+                        read_times[day_start_timestamp] += reading_time
+                        
+                        total_books_processed += 1
+                        print(f"  ✅ {book_item.get('book', {}).get('title', '未知书籍')[:20]}...: {reading_time}秒")
+                
+            except Exception as e:
+                print(f"  ⚠️  处理书籍 {book_id} 时出错: {e}")
+                continue
+        
+        print(f"📊 成功处理 {total_books_processed} 本书，收集到 {len(read_times)} 天的阅读数据")
+        
+        # 转换为原来 API 的格式 (时间戳 -> 分钟)
+        formatted_read_times = {}
+        for date_ts, seconds in read_times.items():
+            # 将秒转换为分钟 (原来 API 返回分钟)
+            minutes = seconds // 60
+            if minutes > 0:  # 只保留有意义的阅读时间
+                formatted_read_times[int(date_ts)] = minutes
+        
+        result = {"readTimes": formatted_read_times}
+        print(f"📈 总阅读时间: {sum(formatted_read_times.values())} 分钟，跨越 {len(formatted_read_times)} 天")
+        
+        return result
 
     
 
