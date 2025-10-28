@@ -43,5 +43,4 @@ MANIFEST
 Thumbs.db
 
 # Project specific
-OUT_FOLDER/
 *.log
